@@ -2,6 +2,8 @@
 
 Training Timer is a customizable workout timer application built with Flutter. It helps you manage your workout and rest intervals with ease, featuring visual progress indicators and audio alerts to keep you on track. This app is designed to be intuitive and user-friendly, suitable for any type of interval training.
 
+The web version of the app can be accessed at: [https://plinkr.github.io/training_timer_web/](https://plinkr.github.io/training_timer_web/)
+
 ## Features
 
 - **Customizable Rounds and Intervals**: Set your desired workout duration, number of rounds, and rest periods.
@@ -21,7 +23,7 @@ To run this project locally, ensure you have Flutter installed. Then follow thes
 
 1. **Clone the repository**:
     ```sh
-    git clone https://github.com/plinkr/training-timer.git
+    git clone https://github.com/plinkr/training_timer
     cd training-timer
     ```
 
@@ -32,7 +34,7 @@ To run this project locally, ensure you have Flutter installed. Then follow thes
 
 3. **Run the app**:
     ```sh
-    flutter run
+    flutter run --release
     ```
 
 ### Running on the Web
