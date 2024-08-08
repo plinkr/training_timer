@@ -48,6 +48,7 @@ To build and run the web version, follow these steps:
 
 2. **Serve the web app**:
     ```sh
+    cd build/web/
     python -m http.server 1337
     ```
 

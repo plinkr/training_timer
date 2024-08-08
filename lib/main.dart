@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,10 +35,14 @@ class TimerPageState extends State<TimerPage> {
   int _rounds = 12;
   int _currentRound = 1;
   int _restSeconds = 60;
+  int _prepSeconds = 10;
+  int _runningPrepSeconds = 10;
   bool _isResting = false;
+  bool _isPreparing = false;
   Timer? _timer;
   bool _isRunning = false;
   bool _isPaused = false;
+  bool _prepCompleted = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   void _startPauseTimer() {
@@ -52,7 +57,11 @@ class TimerPageState extends State<TimerPage> {
       } else {
         _isRunning = true;
         _isPaused = false;
-        _startTimer();
+        if (!_prepCompleted) {
+          _startPreparation();
+        } else {
+          _startTimer();
+        }
       }
     });
   }
@@ -72,9 +81,32 @@ class TimerPageState extends State<TimerPage> {
     setState(() {
       _seconds = _totalSeconds;
       _currentRound = 1;
+      _runningPrepSeconds = _prepSeconds;
       _isResting = false;
+      _isPreparing = false;
+      _prepCompleted = false;
       _isRunning = false;
       _isPaused = false;
+    });
+  }
+
+  void _startPreparation() {
+    setState(() {
+      _isPreparing = true;
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_runningPrepSeconds > 0) {
+          _runningPrepSeconds--;
+        } else {
+          _playSound('gong.ogg');
+          _isPreparing = false;
+          _prepCompleted = true;
+          _startTimer();
+          timer.cancel();
+        }
+      });
     });
   }
 
@@ -84,18 +116,11 @@ class TimerPageState extends State<TimerPage> {
     }
     _isRunning = true;
     _isPaused = false;
-    if (_seconds == 0) {
-      _seconds = _totalSeconds;
-      _currentRound = 1;
-      _isResting = false;
-    }
-
-    _playSound('gong.ogg');
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       setState(() {
         if (_seconds > 0) {
-          if (_seconds == 12 && !_isResting) {
+          if (_seconds == 11) {
             _playSound('warning.ogg');
           }
           _seconds--;
@@ -108,15 +133,33 @@ class TimerPageState extends State<TimerPage> {
               _playSound('gong.ogg');
             } else {
               _timer!.cancel();
-              _isRunning = false;
+              _resetState();
             }
           } else {
-            _seconds = _restSeconds;
-            _isResting = true;
-            _playSound('gong2.ogg');
+            if (_currentRound < _rounds) {
+              _seconds = _restSeconds;
+              _isResting = true;
+              _playSound('gong2.ogg');
+            } else {
+              _timer!.cancel();
+              _resetState();
+            }
           }
         }
       });
+    });
+  }
+
+  void _resetState() {
+    setState(() {
+      _seconds = _totalSeconds;
+      _currentRound = 1;
+      _runningPrepSeconds = _prepSeconds;
+      _isResting = false;
+      _isPreparing = false;
+      _prepCompleted = false;
+      _isRunning = false;
+      _isPaused = false;
     });
   }
 
@@ -128,14 +171,20 @@ class TimerPageState extends State<TimerPage> {
   Widget build(BuildContext context) {
     int minutes = _seconds ~/ 60;
     int seconds = _seconds % 60;
-    double progress =
-        _isResting ? _seconds / _restSeconds : _seconds / _totalSeconds;
+    double progress = _isPreparing
+        ? _runningPrepSeconds / _prepSeconds
+        : _isResting
+            ? _seconds / _restSeconds
+            : _seconds / _totalSeconds;
 
     Color firstColor;
     Color secondColor;
 
     if (_isRunning) {
-      if (_isResting) {
+      if (_isPreparing) {
+        firstColor = Colors.lightGreen;
+        secondColor = Colors.greenAccent;
+      } else if (_isResting) {
         firstColor = Colors.yellow.shade400;
         secondColor = Colors.yellow.shade300;
       } else {
@@ -154,10 +203,10 @@ class TimerPageState extends State<TimerPage> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'Round $_currentRound of $_rounds',
+          _isPreparing ? 'Get Ready' : 'Round $_currentRound/$_rounds',
           style: Theme.of(context).textTheme.headlineLarge?.copyWith(
             color: Colors.white,
-            fontSize: 60,
+            fontSize: 58,
             shadows: [
               const Shadow(
                 offset: Offset(-4.0, 2.0),
@@ -167,6 +216,7 @@ class TimerPageState extends State<TimerPage> {
             ],
           ),
         ),
+        toolbarHeight: kToolbarHeight + 15,
         centerTitle: true,
       ),
       body: Container(
@@ -194,7 +244,11 @@ class TimerPageState extends State<TimerPage> {
                         width: size,
                         height: size,
                         decoration: BoxDecoration(
-                          color: _isResting ? Colors.yellow : Colors.green[900],
+                          color: _isResting
+                              ? Colors.yellow
+                              : _isPreparing
+                                  ? Colors.teal[900]
+                                  : Colors.green[900],
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -207,18 +261,24 @@ class TimerPageState extends State<TimerPage> {
                           valueColor: AlwaysStoppedAnimation<Color>(
                             _isResting
                                 ? Colors.yellow.shade800
-                                : Colors.greenAccent,
+                                : _isPreparing
+                                    ? Colors.teal.shade400
+                                    : Colors.greenAccent,
                           ),
                           backgroundColor: Colors.blueGrey[700],
                         ),
                       ),
                       Text(
-                        '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+                        _isPreparing
+                            ? '$_runningPrepSeconds'
+                            : '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
                         style: TextStyle(
                           fontSize: size / 2.7,
                           color: _isResting
                               ? Colors.yellow[800]
-                              : Colors.greenAccent,
+                              : _isPreparing
+                                  ? Colors.teal[400]
+                                  : Colors.greenAccent,
                         ),
                       ),
                     ],
@@ -271,6 +331,8 @@ class TimerPageState extends State<TimerPage> {
             TextEditingController(text: _rounds.toString());
         TextEditingController restTimeController =
             TextEditingController(text: _restSeconds.toString());
+        TextEditingController prepTimeController =
+            TextEditingController(text: _prepSeconds.toString());
 
         return AlertDialog(
           title: const Text('Settings'),
@@ -282,18 +344,28 @@ class TimerPageState extends State<TimerPage> {
                 decoration:
                     const InputDecoration(labelText: 'Round Time (minutes)'),
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               TextField(
                 controller: roundsController,
                 decoration:
                     const InputDecoration(labelText: 'Number of Rounds'),
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
               TextField(
                 controller: restTimeController,
                 decoration:
                     const InputDecoration(labelText: 'Rest Time (seconds)'),
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              ),
+              TextField(
+                controller: prepTimeController,
+                decoration: const InputDecoration(
+                    labelText: 'Preparation Time (seconds)'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               ),
             ],
           ),
@@ -301,21 +373,45 @@ class TimerPageState extends State<TimerPage> {
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  int newTotalSeconds =
-                      int.tryParse(roundTimeController.text) != null
-                          ? int.parse(roundTimeController.text) * 60
-                          : _totalSeconds;
-                  int newRounds = int.tryParse(roundsController.text) != null
-                      ? int.parse(roundsController.text)
-                      : _rounds;
+                  int newTotalMinutes =
+                      int.tryParse(roundTimeController.text) ??
+                          _totalSeconds ~/ 60;
+                  int newRounds =
+                      int.tryParse(roundsController.text) ?? _rounds;
                   int newRestSeconds =
-                      int.tryParse(restTimeController.text) != null
-                          ? int.parse(restTimeController.text)
-                          : _restSeconds;
+                      int.tryParse(restTimeController.text) ?? _restSeconds;
+                  int newPrepSeconds =
+                      int.tryParse(prepTimeController.text) ?? _prepSeconds;
 
-                  _totalSeconds = newTotalSeconds;
+                  if (newTotalMinutes < 1) {
+                    newTotalMinutes = 1;
+                  } else if (newTotalMinutes > 60) {
+                    newTotalMinutes = 60;
+                  }
+
+                  if (newRounds < 1) {
+                    newRounds = 1;
+                  } else if (newRounds > 99) {
+                    newRounds = 99;
+                  }
+
+                  if (newRestSeconds < 5) {
+                    newRestSeconds = 5;
+                  } else if (newRestSeconds > 3600) {
+                    newRestSeconds = 3600;
+                  }
+
+                  if (newPrepSeconds < 5) {
+                    newPrepSeconds = 5;
+                  } else if (newPrepSeconds > 60) {
+                    newPrepSeconds = 60;
+                  }
+
+                  _totalSeconds = newTotalMinutes * 60;
                   _rounds = newRounds;
                   _restSeconds = newRestSeconds;
+                  _prepSeconds = newPrepSeconds;
+                  _runningPrepSeconds = _prepSeconds;
                   _seconds = _totalSeconds;
                 });
                 Navigator.of(context).pop();
